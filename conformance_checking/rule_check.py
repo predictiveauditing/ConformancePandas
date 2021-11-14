@@ -1,16 +1,20 @@
-class Rule_Checker():
+from util.log import EventLog
+import numpy as np
+import pandas as pd
 
-	def get_percentage(self, total: int, observations: int) -> float:
-		return round((100 / total) * observations, 4)
 
-	def export_case_ids(self, file: str, ids: list):
-		file = file + '.csv'
-		with open(file, "w") as f:
-			for case_id in ids:
-				f.write("%s\n" % case_id)
-			f.close()
+class RuleChecker(EventLog):
 
-	def check_cardinality(self, log, activity: str, upper: int, lower: int) -> dict:
+	def __init__(self, id="case:concept:name", trace="concept:name", timestamp="time:timstamp"):
+		EventLog.__init__(self, id, trace, timestamp)
+		self.violations = 0
+		self.cases = 0
+
+	def get_percentage(self) -> float:
+		return round((self.violations / self.cases) *100, 2)
+
+	def check_cardinality(self, log: pd.DataFrame,
+						  activity: str, upper: int, lower: int, label=True) -> pd.DataFrame:
 		"""
 		Check cardinalities for given activity.
 
@@ -20,29 +24,21 @@ class Rule_Checker():
 		:param lower: min. number of occurrence in one trace
 		:return: report
 		"""
+		log["Csum"] = np.where(log[self.trace]==activity, 1, 0)
+		log["Csum"] = log.groupby([self.id])["Csum"].apply(lambda x: x.cumsum())
+		log["Pos cardinality  "+ activity] = np.where(
+				(log["Csum"] <=upper & log["Csum"]<=lower), 1, 0)
+		self.violations = log.groupby([self.id])["Pos cardinality "+activity].min().sum()
+		self.cases = len(log[self.id].unique())
+		log = log.merge(log.groupby([self.id]
+						 )["Pos cardinality "+activity].min()
+			  .reset_index().rename(columns={"Pos cardinality "+activity
+							: "cardinality "+ activity}),
+			  on=[self.id], how="left")
+		log = log.drop(columns=["Csum"])
+		return log
 
-		violation_upper = 0
-		violation_lower = 0
-
-		for trace in log:
-
-			events = trace['events']
-			counter = events.count(activity)
-
-			if counter < lower:
-				violation_lower += 1
-			elif counter > upper != -1:
-				violation_upper += 1
-
-		return {'activity': activity,
-				'violation upper': (violation_upper,
-									self.get_percentage(len(log),
-														violation_upper)),
-				'violation lower': (violation_lower,
-									self.get_percentage(len(log),
-														violation_lower))}
-
-	def check_order(self, log, first: str, second: str) -> dict:
+	def check_order(self, log, first: str, second: str) -> pd.DataFrame:
 		"""
 		Check the order of the given activities.
 
@@ -74,6 +70,7 @@ class Rule_Checker():
 
 	def check_response(self, log, request: str, response: str,
 					   single_occurrence=False) -> dict:
+		raise NotImplementedError
 		"""
 		Check response requirements of the given activity.
 
@@ -123,8 +120,8 @@ class Rule_Checker():
 						   self.get_percentage(candidate_traces, violated_traces)),
 				'single': single_occurrence}
 
-	def check_precedence(self, log, preceding: str, request: str,
-						 single_occurrence=False, file='') -> dict:
+	def check_precedence(self, log: pd.DataFrame, preceding: str, request: str,
+						 single_occurrence=False, perc=False) -> pd.DataFrame:
 		"""
 		Check precedence requirements of the given activity.
 
@@ -135,54 +132,56 @@ class Rule_Checker():
 		preceding activity already satisfies the rule
 		:return: report
 		"""
+		self.cases=0
+		self.violations=0
+		case_id_dict = dict()
 
-		violations = 0
-		candidate_traces = 0
-		trace_ids = []
-		violated_traces = 0
-
-		for trace in log:
-			events = trace['events']
-			pre_stack = []
-			tracked = False
-
+		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			if request in events:
-				candidate_traces += 1
+				self.cases+=1
+				tracked = False
+				pre_stack = list()
 				if single_occurrence:
 					if preceding in events:
 						request_idx = events.index(request)
 						preceding_idx = events.index(preceding)
 						if request_idx < preceding_idx:
-							violations += 1
-							violated_traces += 1
-							trace_ids.append(','.join([trace['trace_id'], trace['vendor'], trace['value'],
-													   trace['spend_area'], trace['item_type']]))
+							self.violations += 1
+							case_id_dict[case_id] = request_idx
+
 					else:
-						trace_ids.append(','.join([trace['trace_id'], trace['vendor'], trace['value'],
-												   trace['spend_area'], trace['item_type']]))
-						violations += 1
-						violated_traces += 1
+						self.violations += 1
+						request_idx = events.index(request)
+						case_id_dict[case_id] = request_idx
+
 				else:
-					for event in events:
+
+					for i, event in enumerate(events):
 						if event == preceding:
 							pre_stack.append(event)
 						elif event == request and len(pre_stack) > 0:
 							pre_stack.pop()
 						elif event == request:
-							violations += 1
 							if not tracked:
-								trace_ids.append(','.join([trace['trace_id'], trace['vendor'], trace['value'],
-														   trace['spend_area'], trace['item_type']]))
-								violated_traces += 1
+								case_id_dict[case_id] = i
+								self.violations += 1
 								tracked = True
-		if len(file) > 0:
-			file = '_'.join([file, 'precedence', preceding, request, str(single_occurrence)])
-			self.export_case_ids(file, trace_ids)
 
-		return {'preceding': preceding, 'request': request,
-				'violations': (violations, violated_traces,
-							   self.get_percentage(candidate_traces, violated_traces)),
-				'single': single_occurrence}
+		log[" ".join(["precedence", preceding, request])] = np.where(
+				log[self.id].isin(case_id_dict.keys()), 1, 0 )
+		log = log.merge(pd.DataFrame({self.id:case_id_dict.keys(),
+								"_".join(["Pos",
+										  "precedence",
+										  preceding,
+										  request]): case_id_dict.values()}),
+				  on=[self.id],
+				  how="left")
+		print("Conformance checking via precedence rules of '"+request+"' requiring '"+preceding
+			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
+			  +"% of all cases.")
+		return log
+
+
 
 	def check_exclusive(self, log, first_activity: str, second_activity: str) -> dict:
 		"""
@@ -194,7 +193,7 @@ class Rule_Checker():
 		:param second_activity: activity
 		:return: report
 		"""
-
+		raise NotImplementedError
 		violations = 0
 		violated_traces = 0
 
