@@ -39,30 +39,34 @@ class RuleChecker(EventLog):
 		return log
 
 
-	def check_cardinality(self, log: pd.DataFrame, activity: str, lower: int,
-						   upper: int, label=True)-> pd.DataFrame:
+	def check_cardinality(self, log: pd.DataFrame, activity: str, upper: int, lower: int, label=True)-> pd.DataFrame:
 		t0 = dt.datetime.now()
 		self.rule = "cardinality"
 		self.checked_activity = "_".join([activity, str(0), str(1)])
 		self.cases = 0
 		self.violations = 0
+		lower_violations = 0
+		upper_violations = 0
 		case_id_dict = dict()
 
 		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			self.cases += 1
 			violated = False
+
 			counter = 0
 			for i, event in enumerate(events):
 				if event == activity:
 					counter += 1
-					if counter >= upper:
+					if counter > upper:
 						if not violated:
 							self.violations += 1
+							upper_violations += 1
 							case_id_dict[case_id] = i
 							violated = True
 				if counter < lower and i == len(events) and not violated:
 					# lower cardinality incompliance only gets labeled  when the trace is finalized
 					self.violations += 1
+					lower_violations += 1
 					case_id_dict[case_id] = len(events)
 		if label:
 			log = self.label_log(log, case_id_dict)
@@ -70,6 +74,7 @@ class RuleChecker(EventLog):
 		print("Conformance checking via cardinality rules of '"+activity
 				  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
 				  +"% of all cases.")
+		print(lower_violations, upper_violations)
 		print("Execution time="+str((dt.datetime.now()-t0).seconds)+" seconds")
 		return log
 
@@ -105,7 +110,7 @@ class RuleChecker(EventLog):
 
 	def check_response(self, log, request: str, response: str,
 					   single_occurrence=False) -> dict:
-		raise NotImplementedError
+
 		"""
 		Check response requirements of the given activity.
 
@@ -205,14 +210,15 @@ class RuleChecker(EventLog):
 								self.violations += 1
 								tracked = True
 
+		print("Execution time="+str((dt.datetime.now()-t0).seconds)+" seconds")
 		if label:
+			t1 = dt.datetime.now()
 			log = self.label_log(log, case_id_dict)
+			print("Labeling time="+str((dt.datetime.now()-t1).seconds)+" seconds")
 		print("Conformance checking via precedence rules of '"+request+"' requiring '"+preceding
 			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
 			  +"% of all cases.")
-		print("Execution time="+str((dt.datetime.now()-t0).seconds)+" seconds")
 		return log
-
 
 
 	def check_exclusive(self, log, first_activity: str, second_activity: str) -> dict:

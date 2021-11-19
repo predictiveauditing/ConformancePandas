@@ -1,3 +1,4 @@
 notebooks/
 .idea/
 __pycache__/
+tests/
