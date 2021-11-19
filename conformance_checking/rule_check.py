@@ -1,7 +1,11 @@
 from util.log import EventLog
 import numpy as np
 import pandas as pd
-
+import datetime as dt
+desired_width = 200
+pd.set_option('display.width', desired_width)
+pd.set_option("display.max_rows", 40)
+pd.set_option("display.max_columns", None)
 
 class RuleChecker(EventLog):
 
@@ -9,33 +13,64 @@ class RuleChecker(EventLog):
 		EventLog.__init__(self, id, trace, timestamp)
 		self.violations = 0
 		self.cases = 0
+		self.rule = str()
+		self.checked_activity = str()
+
 
 	def get_percentage(self) -> float:
 		return round((self.violations / self.cases) *100, 2)
 
-	def check_cardinality(self, log: pd.DataFrame,
-						  activity: str, upper: int, lower: int, label=True) -> pd.DataFrame:
-		"""
-		Check cardinalities for given activity.
 
-		:param log: event log
-		:param activity: name of the activity
-		:param upper: max. number of occurrence in one trace, -1 if infinite
-		:param lower: min. number of occurrence in one trace
-		:return: report
-		"""
-		log["Csum"] = np.where(log[self.trace]==activity, 1, 0)
-		log["Csum"] = log.groupby([self.id])["Csum"].apply(lambda x: x.cumsum())
-		log["Pos cardinality  "+ activity] = np.where(
-				(log["Csum"] <=upper & log["Csum"]<=lower), 1, 0)
-		self.violations = log.groupby([self.id])["Pos cardinality "+activity].min().sum()
-		self.cases = len(log[self.id].unique())
-		log = log.merge(log.groupby([self.id]
-						 )["Pos cardinality "+activity].min()
-			  .reset_index().rename(columns={"Pos cardinality "+activity
-							: "cardinality "+ activity}),
-			  on=[self.id], how="left")
-		log = log.drop(columns=["Csum"])
+	def label_log(self, log: pd.DataFrame, case_id_dict: dict) -> pd.DataFrame:
+		log["_".join([self.rule, self.checked_activity])] = np.where(
+			log[self.id].isin(case_id_dict.keys()), 1, 0 )
+		log = log.merge(pd.DataFrame({self.id:case_id_dict.keys(),
+								  "_".join(["Pos", self.rule, self.checked_activity])
+								  : case_id_dict.values()}),
+					on=[self.id],
+					how="left")
+		log["idx"] = 0
+		log["idx"] = log.groupby([self.id])["idx"].cumcount()
+		log["_".join(["Pos", self.rule, self.checked_activity])] = log[
+			"_".join(["Pos", self.rule, self.checked_activity])].fillna(np.inf)
+		log["_".join(["Pos", self.rule, self.checked_activity])] = np.where(log[
+			"_".join(["Pos", self.rule, self.checked_activity])]<= log["idx"], 1, 0)
+		log = log.drop(columns=["idx"])
+		return log
+
+
+	def check_cardinality(self, log: pd.DataFrame, activity: str, lower: int,
+						   upper: int, label=True)-> pd.DataFrame:
+		t0 = dt.datetime.now()
+		self.rule = "cardinality"
+		self.checked_activity = "_".join([activity, str(0), str(1)])
+		self.cases = 0
+		self.violations = 0
+		case_id_dict = dict()
+
+		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
+			self.cases += 1
+			violated = False
+			counter = 0
+			for i, event in enumerate(events):
+				if event == activity:
+					counter += 1
+					if counter >= upper:
+						if not violated:
+							self.violations += 1
+							case_id_dict[case_id] = i
+							violated = True
+				if counter < lower and i == len(events) and not violated:
+					# lower cardinality incompliance only gets labeled  when the trace is finalized
+					self.violations += 1
+					case_id_dict[case_id] = len(events)
+		if label:
+			log = self.label_log(log, case_id_dict)
+
+		print("Conformance checking via cardinality rules of '"+activity
+				  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
+				  +"% of all cases.")
+		print("Execution time="+str((dt.datetime.now()-t0).seconds)+" seconds")
 		return log
 
 	def check_order(self, log, first: str, second: str) -> pd.DataFrame:
@@ -90,9 +125,7 @@ class RuleChecker(EventLog):
 		for trace in log:
 			events = trace['events']
 			req_stack = []
-
 			tracked = False
-
 			if request in events:
 				candidate_traces += 1
 				if single_occurrence:
@@ -121,7 +154,7 @@ class RuleChecker(EventLog):
 				'single': single_occurrence}
 
 	def check_precedence(self, log: pd.DataFrame, preceding: str, request: str,
-						 single_occurrence=False, perc=False) -> pd.DataFrame:
+						 single_occurrence=False, label=True) -> pd.DataFrame:
 		"""
 		Check precedence requirements of the given activity.
 
@@ -132,13 +165,18 @@ class RuleChecker(EventLog):
 		preceding activity already satisfies the rule
 		:return: report
 		"""
-		self.cases=0
-		self.violations=0
+
+		t0 = dt.datetime.now()
+		self.rule = "precedence"
+		self.checked_activity = preceding + "_" +  request
+		self.cases = 0
+		self.violations = 0
+
 		case_id_dict = dict()
 
 		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			if request in events:
-				self.cases+=1
+				self.cases += 1
 				tracked = False
 				pre_stack = list()
 				if single_occurrence:
@@ -167,18 +205,12 @@ class RuleChecker(EventLog):
 								self.violations += 1
 								tracked = True
 
-		log[" ".join(["precedence", preceding, request])] = np.where(
-				log[self.id].isin(case_id_dict.keys()), 1, 0 )
-		log = log.merge(pd.DataFrame({self.id:case_id_dict.keys(),
-								"_".join(["Pos",
-										  "precedence",
-										  preceding,
-										  request]): case_id_dict.values()}),
-				  on=[self.id],
-				  how="left")
+		if label:
+			log = self.label_log(log, case_id_dict)
 		print("Conformance checking via precedence rules of '"+request+"' requiring '"+preceding
 			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
 			  +"% of all cases.")
+		print("Execution time="+str((dt.datetime.now()-t0).seconds)+" seconds")
 		return log
 
 
