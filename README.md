@@ -8,6 +8,7 @@ Follow the steps below, to import an XES event log as a pandas DataFrame:
 ````
 from ConformancePandas.util.log import EventLog
 
-path_to_log = './event_log.xes'
-log = EventLog().read_xes(path_to_log)
-´´´´´
+el = EventLog(id_col='case:concept:name', activity_col='case:concept:name', timestamp_col='time:timestamp')
+path_to_log = '<path_to_xes_file>'
+log = el.read_xes(path_to_log)
+````
