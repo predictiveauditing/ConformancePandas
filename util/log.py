@@ -5,12 +5,12 @@ from pm4py.algo.filtering.pandas.timestamp import timestamp_filter
 
 
 class EventLog(object):
-	def __init__(self, id="case:concept:name",
-				 trace="concept:name",
-				 timestamp="time:timestamp"):
-		self.id = id
-		self.trace = trace
-		self.timestamp = timestamp
+	def __init__(self, id_col="case:concept:name",
+				 activity_col="concept:name",
+				 timestamp_col="time:timestamp"):
+		self.id = id_col
+		self.trace = activity_col
+		self.timestamp = timestamp_col
 
 	def read_xes(self, file: str):
 		df = xes_importer.apply(file)

@@ -39,7 +39,8 @@ class RuleChecker(EventLog):
 		return log
 
 
-	def check_cardinality(self, log: pd.DataFrame, activity: str, upper: int, lower: int, label=True)-> pd.DataFrame:
+	def check_cardinality(self, log: pd.DataFrame, activity: str, upper: int, lower: int,
+						  label=True)-> pd.DataFrame:
 		t0 = dt.datetime.now()
 		self.rule = "cardinality"
 		self.checked_activity = "_".join([activity, str(0), str(1)])
@@ -68,17 +69,17 @@ class RuleChecker(EventLog):
 					self.violations += 1
 					lower_violations += 1
 					case_id_dict[case_id] = len(events)
-		if label:
-			log = self.label_log(log, case_id_dict)
-
-		print("Conformance checking via cardinality rules of '"+activity
-				  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
-				  +"% of all cases.")
-		print(lower_violations, upper_violations)
 		print("Execution time="+str((dt.datetime.now()-t0).seconds)+" seconds")
-		return log
+		print("Conformance checking via cardinality rules of '"+activity
+			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
+			  +"% of all cases.")
+		if label:
+			t1 = dt.datetime.now()
+			log = self.label_log(log, case_id_dict)
+			print("Labeling time="+str((dt.datetime.now()-t1).seconds)+" seconds")
+			return log
 
-	def check_order(self, log, first: str, second: str) -> pd.DataFrame:
+	def check_order(self, log, first: str, second: str):
 		"""
 		Check the order of the given activities.
 
@@ -109,7 +110,7 @@ class RuleChecker(EventLog):
 							   self.get_percentage(traces, violations))}
 
 	def check_response(self, log, request: str, response: str,
-					   single_occurrence=False) -> dict:
+					   single_occurrence=False, label=True):
 
 		"""
 		Check response requirements of the given activity.
@@ -122,27 +123,28 @@ class RuleChecker(EventLog):
 		responding activity already satisfies the rule
 		:return: report
 		"""
+		t0 = dt.datetime.now()
+		self.rule = "response"
+		self.checked_activity = request + "_" +  response
+		self.cases = 0
+		self.violations = 0
 
-		violations = 0
-		candidate_traces = 0
-		violated_traces = 0
+		case_id_dict = dict()
 
-		for trace in log:
-			events = trace['events']
+		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			req_stack = []
 			tracked = False
 			if request in events:
-				candidate_traces += 1
+				self.cases += 1
 				if single_occurrence:
 					if response in events:
 						req_idx = events[::-1].index(request)
 						res_idx = events[::-1].index(response)
 						if req_idx < res_idx:
-							violations += 1
-							violated_traces += 1
+							self.violations += 1
+							case_id_dict[case_id] = len(events)
 					else:
-						violated_traces += 1
-						violations += 1
+						self.violations += 1
 				else:
 					for event in events:
 						if event == request:
@@ -150,16 +152,20 @@ class RuleChecker(EventLog):
 						elif event == response and len(req_stack) > 0:
 							req_stack.pop()
 					if len(req_stack) > 0:
-						violated_traces += 1
-						violations += len(req_stack)
-
-		return {'request': request, 'response': response,
-			'violations': (violations, violated_traces,
-						   self.get_percentage(candidate_traces, violated_traces)),
-				'single': single_occurrence}
+						self.violations += 1
+						case_id_dict[case_id] = len(events)
+		print("Execution time="+str((dt.datetime.now()-t0).seconds)+" seconds")
+		print("Conformance checking via response rules of '"+request+"' requiring '"+response
+			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
+			  +"% of all cases.")
+		if label:
+			t1 = dt.datetime.now()
+			log = self.label_log(log, case_id_dict)
+			print("Labeling time="+str((dt.datetime.now()-t1).seconds)+" seconds")
+			return log
 
 	def check_precedence(self, log: pd.DataFrame, preceding: str, request: str,
-						 single_occurrence=False, label=True) -> pd.DataFrame:
+						 single_occurrence=False, label=True):
 		"""
 		Check precedence requirements of the given activity.
 
@@ -211,14 +217,14 @@ class RuleChecker(EventLog):
 								tracked = True
 
 		print("Execution time="+str((dt.datetime.now()-t0).seconds)+" seconds")
+		print("Conformance checking via precedence rules of '"+request+"' requiring '"+preceding
+			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
+			  +"% of all cases.")
 		if label:
 			t1 = dt.datetime.now()
 			log = self.label_log(log, case_id_dict)
 			print("Labeling time="+str((dt.datetime.now()-t1).seconds)+" seconds")
-		print("Conformance checking via precedence rules of '"+request+"' requiring '"+preceding
-			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
-			  +"% of all cases.")
-		return log
+			return log
 
 
 	def check_exclusive(self, log, first_activity: str, second_activity: str) -> dict:
