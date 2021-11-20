@@ -8,4 +8,4 @@ setuptools.setup(name='conformancepandas',
 				 author_email="tim.baessler@web.de",
 				 url="https://github.com/timbaessler/ConformancePandas",
 				 packages=["conformancepandas"],
-				 install_requires=["pm4py==2.2.16"])
+				 install_requires=["pm4py"])
