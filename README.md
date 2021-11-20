@@ -20,7 +20,7 @@ path_to_log = '<path_to_xes_file>'
 log = eventlog.read_xes(path_to_log)
 ```
 
-## Conformance Checking and Labeling 
+## Conformance Checking
 Enabeling labeling for exact point of violation in the trace:
 
 ```python
@@ -30,6 +30,17 @@ rulechecker = RuleChecker(id_col='case:concept:name',
               activity_col='case:concept:name', 
               timestamp_col='time:timestamp')
          
-log = rulechecker.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=True)
+print(rulechecker.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=False))
 
 ```
+``
+Conformance checking via precedence rules of 'Clear Invoice' requiring 'Record Goods Receipt' with 5665 violations: 3.08% of all cases.
+``
+
+## Labeling for Predictive Process Mining
+
+```python
+log = rulechecker.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=True)
+print(log)
+```
+
