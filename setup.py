@@ -7,5 +7,7 @@ setuptools.setup(name='conformancepandas',
 				 author="Tim Bäßler",
 				 author_email="tim.baessler@web.de",
 				 url="https://github.com/timbaessler/ConformancePandas",
-				 packages=["conformancepandas"],
+				 packages=["conformancepandas",
+						   "conformancepandas.conformance_checking",
+						   "conformancepandas.util"],
 				 install_requires=["pm4py"])
