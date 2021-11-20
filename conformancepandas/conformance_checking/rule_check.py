@@ -9,65 +9,102 @@ pd.set_option("display.max_columns", None)
 
 class RuleChecker(EventLog):
 
-	def __init__(self, id="case:concept:name", trace="concept:name", timestamp="time:timstamp"):
+	def __init__(self,id="case:concept:name", trace="concept:name", timestamp="time:timstamp"):
+
 		EventLog.__init__(self, id, trace, timestamp)
-		self.violations = 0
-		self.cases = 0
+
+		self.violations = int(0)
+		self.cases = int(0)
 		self.rule = str()
+		self.label_dict = dict()
 		self.checked_activity = str()
+		self.case_id_dict = dict()
+		self.compliant_case_id_dict = dict()
 
 
 	def get_percentage(self) -> float:
 		return round((self.violations / self.cases) *100, 2)
 
 
-	def label_log(self, log: pd.DataFrame, case_id_dict: dict) -> pd.DataFrame:
-		log["_".join([self.rule, self.checked_activity])] = np.where(
-			log[self.id].isin(case_id_dict.keys()), 1, 0 )
-		log = log.merge(pd.DataFrame({self.id:case_id_dict.keys(),
-								  "_".join(["Pos", self.rule, self.checked_activity])
-								  : case_id_dict.values()}),
-					on=[self.id],
-					how="left")
+	def get_compliant_cases(self, log):
+		self.compliant_case_id_dict = dict()
+		incompliant_cases = list(self.case_id_dict.keys())
+		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
+			if case_id not in incompliant_cases:
+				self.compliant_case_id_dict[case_id] = len(events)
+
+
+	def encode_sequences(self, log: pd.DataFrame, r: float) -> pd.DataFrame:
+		self.get_compliant_cases(log)
+		self.label_name = "_".join([self.rule, self.checked_activity])
+		self.label_dict[self.label_name] = r
+		print(self.label_dict)
+		self.pos_name = "_".join(["Pos", self.rule, self.checked_activity])
+		log[self.label_name] = np.where(
+			log[self.id].isin(self.case_id_dict.keys()), 1, 0 )
+		n_traces = len(log[self.id].unique())
+		log_shape = log.shape[0]
+		assert len(self.case_id_dict.keys()) +len(self.compliant_case_id_dict.keys()) == n_traces
+		log = log.merge(pd.DataFrame({self.id:list(self.case_id_dict.keys())
+											  +list(self.compliant_case_id_dict.keys()),
+									  self.pos_name: (list(self.case_id_dict.values())
+											+list(self.compliant_case_id_dict.values()))}),
+						on=[self.id], how="left")
+		assert log.shape[0] == log_shape
 		log["idx"] = 0
 		log["idx"] = log.groupby([self.id])["idx"].cumcount()
-		log["_".join(["Pos", self.rule, self.checked_activity])] = log[
-			"_".join(["Pos", self.rule, self.checked_activity])].fillna(np.inf)
-		log["_".join(["Pos2", self.rule, self.checked_activity])] = np.where(log[
-			"_".join(["Pos", self.rule, self.checked_activity])] <= log["idx"], 1, 0)
+		log[self.pos_name] = log[self.pos_name].fillna(np.inf)
+		log[self.pos_name] = np.where(log[self.pos_name] <= log["idx"], 1, 0)
 		log = log.drop(columns=["idx"])
 		return log
 
+	def label_log(self, log: pd.DataFrame, prefix_reduction) -> pd.DataFrame:
+		#self.label_dict = dict({k: v for k, v in sorted(self.label_dict.items(), key=lambda item: item[1])})
+		y_dict = dict()
+		for row in log[list([self.id])+list(self.label_dict.keys())]:
+			y_dict[row[0]] = 0
+			for i, val in enumerate(row[1:]):
+				if val ==1:
+					y_dict[row[0]] = i
+					break
+
+		log = log.merge(pd.DataFrame({self.id:y_dict.keys(),
+									  "y": y_dict.values()}),
+						on=[self.id], how="left")
+		print(log)
+		return log
+
+
+
 
 	def check_cardinality(self, log: pd.DataFrame, activity: str, upper: int, lower: int,
-						  label=True):
+						  label=True, r=None):
 		self.rule = "cardinality"
-		self.checked_activity = "_".join([activity, str(0), str(1)])
+		self.checked_activity = "_".join([activity, str(upper), str(lower)])
 		self.cases = 0
 		self.violations = 0
-		lower_violations = 0
-		upper_violations = 0
-		case_id_dict = dict()
+		self.case_id_dict = dict()
+
 
 		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			self.cases += 1
-			violated = False
+			tracked = False
 
 			counter = 0
 			for i, event in enumerate(events):
 				if event == activity:
 					counter += 1
 					if counter > upper:
-						if not violated:
+						if not tracked:
 							self.violations += 1
-							upper_violations += 1
-							case_id_dict[case_id] = i
-							violated = True
-				if counter < lower and i == len(events) and not violated:
+							self.case_id_dict[case_id] = i
+							tracked = True
+				if counter < lower and i == len(events) and not tracked:
 					# lower cardinality incompliance only gets labeled  when the trace is finalized
+					tracked = True
 					self.violations += 1
-					lower_violations += 1
-					case_id_dict[case_id] = len(events)
+					self.case_id_dict[case_id] = len(events)
+
 
 		msg = ("Conformance checking via cardinality rules of '"+activity
 			   + "' with "+str(self.violations) + " violations: " + str(self.get_percentage())
@@ -77,12 +114,12 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.label_log(log, case_id_dict)
+			log = self.encode_sequences(log, r)
 			return log
 		elif not label: return msg
 
 
-	def check_order(self, log, first: str, second: str, label=True):
+	def check_order(self, log, first: str, second: str, label=True, r=None):
 		"""
 		Check the order of the given activities.
 
@@ -95,35 +132,34 @@ class RuleChecker(EventLog):
 		self.checked_activity = first + "_" +  second
 		self.cases = 0
 		self.violations = 0
-
-		case_id_dict = dict()
+		self.case_id_dict = dict()
 
 		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			first_stack = []
-
 			if first in events and second in events:
 				self.cases += 1
-
+				tracked = False
 				for i, event in enumerate(events):
 					if event == first:
 						first_stack.append(event)
-					elif event == second and len(first_stack) == 0:
+					elif event == second and len(first_stack) == 0 and not tracked:
+						tracked = True
 						self.violations += 1
-						case_id_dict[case_id] = i
+						self.case_id_dict[case_id] = i
 		msg = ("Conformance checking via order rule of first '"+first+"' followed by '"+second
 			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
 			  +"% of all cases.")
-		if label:
+		if self.label:
 			print()
 			print(msg)
 			print()
-			log = self.label_log(log, case_id_dict)
+			log = self.encode_sequences(log, r)
 			return log
 		elif not label: return msg
 
 
 	def check_response(self, log, request: str, response: str,
-					   single_occurrence=False, label=True):
+					   single_occurrence=False, label=True, r=None):
 
 		"""
 		Check response requirements of the given activity.
@@ -140,8 +176,7 @@ class RuleChecker(EventLog):
 		self.checked_activity = request + "_" +  response
 		self.cases = 0
 		self.violations = 0
-
-		case_id_dict = dict()
+		self.case_id_dict = dict()
 
 		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			req_stack = []
@@ -154,7 +189,7 @@ class RuleChecker(EventLog):
 						res_idx = events[::-1].index(response)
 						if req_idx < res_idx:
 							self.violations += 1
-							case_id_dict[case_id] = len(events)
+							self.case_id_dict[case_id] = len(events)
 					else:
 						self.violations += 1
 				else:
@@ -165,7 +200,7 @@ class RuleChecker(EventLog):
 							req_stack.pop()
 					if len(req_stack) > 0:
 						self.violations += 1
-						case_id_dict[case_id] = len(events)
+						self.case_id_dict[case_id] = len(events)
 		msg = ("Conformance checking via response rules of '"+request+"' requiring '"+response
 			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
 			  +"% of all cases.")
@@ -173,12 +208,12 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.label_log(log, case_id_dict)
+			log = self.encode_sequences(log, r)
 			return log
 		elif not label: return msg
 
 	def check_precedence(self, log: pd.DataFrame, preceding: str, request: str,
-						 single_occurrence=False, label=True):
+						 single_occurrence=False, label=False, r=None):
 		"""
 		Check precedence requirements of the given activity.
 
@@ -194,8 +229,7 @@ class RuleChecker(EventLog):
 		self.checked_activity = preceding + "_" +  request
 		self.cases = 0
 		self.violations = 0
-
-		case_id_dict = dict()
+		self.case_id_dict = dict()
 
 		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			if request in events:
@@ -208,12 +242,12 @@ class RuleChecker(EventLog):
 						preceding_idx = events.index(preceding)
 						if request_idx < preceding_idx:
 							self.violations += 1
-							case_id_dict[case_id] = request_idx
+							self.case_id_dict[case_id] = request_idx
 
 					else:
 						self.violations += 1
 						request_idx = events.index(request)
-						case_id_dict[case_id] = request_idx
+						self.case_id_dict[case_id] = request_idx
 
 				else:
 
@@ -224,7 +258,7 @@ class RuleChecker(EventLog):
 							pre_stack.pop()
 						elif event == request:
 							if not tracked:
-								case_id_dict[case_id] = i
+								self.case_id_dict[case_id] = i
 								self.violations += 1
 								tracked = True
 
@@ -235,12 +269,13 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.label_log(log, case_id_dict)
+			log = self.encode_sequences(log, r)
 			return log
 		elif not label: return msg
 
 
-	def check_exclusive(self, log, first_activity: str, second_activity: str, label=True):
+	def check_exclusive(self, log, first_activity: str, second_activity: str,
+						label=False, r=None):
 		"""
 		Check the exclusiveness of two activities.
 
@@ -255,8 +290,7 @@ class RuleChecker(EventLog):
 		self.checked_activity = first_activity + "_" +  second_activity
 		self.cases = 0
 		self.violations = 0
-
-		case_id_dict = dict()
+		self.case_id_dict = dict()
 
 		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			if first_activity in events or second_activity in events:
@@ -264,7 +298,7 @@ class RuleChecker(EventLog):
 			if first_activity in events and second_activity in events:
 				self.violations += 1
 				idx = max(events.index(first_activity), events.index(second_activity))
-				case_id_dict[case_id] = idx
+				self.case_id_dict[case_id] = idx
 		msg = ("Conformance checking via exclusiveness rule of '"+first_activity+"' and '"+second_activity
 			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
 			  +"% of all cases.")
@@ -272,6 +306,6 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.label_log(log, case_id_dict)
+			log = self.encode_sequences(log, r)
 			return log
 		elif not label: return msg
