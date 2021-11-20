@@ -41,6 +41,5 @@ Conformance checking via precedence rules of 'Clear Invoice' requiring 'Record G
 
 ```python
 log = rulechecker.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=True)
-print(log)
 ```
 
