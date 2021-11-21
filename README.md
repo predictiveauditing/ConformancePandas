@@ -43,7 +43,7 @@ log = rc.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=Tr
 Traces with high risk are encoded with priority.
 ```python
 r = list([0.6, 0.2, 0.15, 0.05])
-label_risk_dict = dict(zip(label_list, r))
+label_risk_dict = dict(zip(rc.label_list, r))
 
 log = rc.encode_traces(log,label_risk_dict = label_risk_dict, 
                                         prefix_reduction=1,
