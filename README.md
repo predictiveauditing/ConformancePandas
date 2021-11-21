@@ -24,7 +24,7 @@ log = eventlog.read_xes(path_to_log)
 Enabeling labeling for exact point of violation in the trace:
 
 ```python
-from conformancepandas.conformance_checking.rule_check import RuleChecker
+from auditencoder.conformance_checking.rule_check import RuleChecker
 
 rulechecker = RuleChecker(id_col='case:concept:name', 
               activity_col='case:concept:name', 
@@ -37,9 +37,24 @@ print(rulechecker.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice',
 Conformance checking via precedence rules of 'Clear Invoice' requiring 'Record Goods Receipt' with 5665 violations: 3.08% of all cases.
 ``
 
-## Labeling for Predictive Process Mining
+## Labeling of Incompliance and Position within Pandas DataFrame
+Returns an extra column signalling incompliance and position of the violated rule.
 
 ```python
 log = rulechecker.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=True)
 ```
+
+## Sequence Encoding
+Traces with high risk are encoded with priority.
+```python
+r = list([0.6, 0.2, 0.15, 0.05])
+label_risk_dict = dict(zip(label_list, r))
+
+log = rulechecker.encode_traces(log,label_risk_dict = label_risk_dict, 
+                                        prefix_reduction=1,
+                                        min_trace_length=4, 
+                                        drop_help_cols=True)
+
+```
+
 
