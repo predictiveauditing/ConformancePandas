@@ -1,6 +1,7 @@
 from ..util.log import EventLog
 import numpy as np
 import pandas as pd
+import sys
 import datetime as dt
 desired_width = 200
 pd.set_option('display.width', desired_width)
@@ -16,7 +17,7 @@ class RuleChecker(EventLog):
 		self.violations = int(0)
 		self.cases = int(0)
 		self.rule = str()
-		self.label_dict = dict()
+		self.label_list = list()
 		self.checked_activity = str()
 		self.case_id_dict = dict()
 		self.compliant_case_id_dict = dict()
@@ -34,51 +35,61 @@ class RuleChecker(EventLog):
 				self.compliant_case_id_dict[case_id] = len(events)
 
 
-	def encode_sequences(self, log: pd.DataFrame, r: float) -> pd.DataFrame:
+	def encode_sequences(self, log: pd.DataFrame) -> pd.DataFrame:
 		self.get_compliant_cases(log)
 		self.label_name = "_".join([self.rule, self.checked_activity])
-		self.label_dict[self.label_name] = r
-		print(self.label_dict)
+		self.label_list.append(self.label_name)
 		self.pos_name = "_".join(["Pos", self.rule, self.checked_activity])
-		log[self.label_name] = np.where(
-			log[self.id].isin(self.case_id_dict.keys()), 1, 0 )
-		n_traces = len(log[self.id].unique())
-		log_shape = log.shape[0]
-		assert len(self.case_id_dict.keys()) +len(self.compliant_case_id_dict.keys()) == n_traces
+		log[self.label_name] = np.where(log[self.id].isin(self.case_id_dict.keys()), 1, 0)
 		log = log.merge(pd.DataFrame({self.id:list(self.case_id_dict.keys())
 											  +list(self.compliant_case_id_dict.keys()),
 									  self.pos_name: (list(self.case_id_dict.values())
 											+list(self.compliant_case_id_dict.values()))}),
 						on=[self.id], how="left")
-		assert log.shape[0] == log_shape
+		return log
+
+	def label_log(self, log: pd.DataFrame, label_risk_dict: dict, prefix_reduction: int,
+				  min_trace_length: int, max_trace_length=None, drop_help_cols=False) -> pd.DataFrame:
+		y_dict = dict()
+		y_pos = dict()
+		label_risk_dict = dict(sorted(label_risk_dict.items(), key=lambda x: x[1]))
+		label_cols = list(label_risk_dict.keys())
+		pos_cols = list(["Pos_"+str(label) for label in label_cols])
+		log2 = log.groupby(self.id).agg(dict(zip(label_cols + pos_cols,
+												 ["first"]*(len(label_cols)*2))))
+		idx = log2.index
+		rows = log2.values
+		for i, case_id in enumerate(idx):
+			tracked = False
+			row = rows[i]
+			for j, val in enumerate(row[:len(label_cols)]):
+				if val == 1:
+					y_dict[case_id] = j+1
+					y_pos[case_id] = row[j]
+					tracked = True
+					break
+				if not tracked:
+					y_dict[case_id] = 0
+					y_pos[case_id] = np.max(row[len(label_cols):])
+		log = log.merge(pd.DataFrame({self.id: y_dict.keys(),
+									  "y": y_dict.values(),
+									  "y_pos": y_pos.values()}),
+						on=[self.id], how="left")
+		log["y_pos"] = log.y_pos - prefix_reduction
+		log = log[log["y_pos"] >= min_trace_length]
+		if not max_trace_length is None:
+			log = log[log["y_pos"] <= max_trace_length]
 		log["idx"] = 0
 		log["idx"] = log.groupby([self.id])["idx"].cumcount()
-		log[self.pos_name] = log[self.pos_name].fillna(np.inf)
-		log[self.pos_name] = np.where(log[self.pos_name] <= log["idx"], 1, 0)
+		log = log[log.idx <= log.y_pos]
 		log = log.drop(columns=["idx"])
+		if drop_help_cols:
+			log = log.drop(columns=label_cols+pos_cols)
 		return log
-
-	def label_log(self, log: pd.DataFrame, prefix_reduction) -> pd.DataFrame:
-		#self.label_dict = dict({k: v for k, v in sorted(self.label_dict.items(), key=lambda item: item[1])})
-		y_dict = dict()
-		for row in log[list([self.id])+list(self.label_dict.keys())]:
-			y_dict[row[0]] = 0
-			for i, val in enumerate(row[1:]):
-				if val ==1:
-					y_dict[row[0]] = i
-					break
-
-		log = log.merge(pd.DataFrame({self.id:y_dict.keys(),
-									  "y": y_dict.values()}),
-						on=[self.id], how="left")
-		print(log)
-		return log
-
-
 
 
 	def check_cardinality(self, log: pd.DataFrame, activity: str, upper: int, lower: int,
-						  label=True, r=None):
+						  label=True):
 		self.rule = "cardinality"
 		self.checked_activity = "_".join([activity, str(upper), str(lower)])
 		self.cases = 0
@@ -114,12 +125,12 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log, r)
+			log = self.encode_sequences(log)
 			return log
 		elif not label: return msg
 
 
-	def check_order(self, log, first: str, second: str, label=True, r=None):
+	def check_order(self, log, first: str, second: str, label=True):
 		"""
 		Check the order of the given activities.
 
@@ -149,17 +160,17 @@ class RuleChecker(EventLog):
 		msg = ("Conformance checking via order rule of first '"+first+"' followed by '"+second
 			  + "' with "+str(self.violations) + " violations: "+ str(self.get_percentage())
 			  +"% of all cases.")
-		if self.label:
+		if label:
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log, r)
+			log = self.encode_sequences(log)
 			return log
 		elif not label: return msg
 
 
 	def check_response(self, log, request: str, response: str,
-					   single_occurrence=False, label=True, r=None):
+					   single_occurrence=False, label=True):
 
 		"""
 		Check response requirements of the given activity.
@@ -208,12 +219,12 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log, r)
+			log = self.encode_sequences(log)
 			return log
 		elif not label: return msg
 
 	def check_precedence(self, log: pd.DataFrame, preceding: str, request: str,
-						 single_occurrence=False, label=False, r=None):
+						 single_occurrence=False, label=False):
 		"""
 		Check precedence requirements of the given activity.
 
@@ -269,13 +280,13 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log, r)
+			log = self.encode_sequences(log)
 			return log
 		elif not label: return msg
 
 
 	def check_exclusive(self, log, first_activity: str, second_activity: str,
-						label=False, r=None):
+						label=False):
 		"""
 		Check the exclusiveness of two activities.
 
@@ -306,6 +317,6 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log, r)
+			log = self.encode_sequences(log)
 			return log
 		elif not label: return msg
