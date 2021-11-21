@@ -1,12 +1,19 @@
-from ..util.log import EventLog
 import numpy as np
 import pandas as pd
-import sys
-import datetime as dt
+
 desired_width = 200
 pd.set_option('display.width', desired_width)
 pd.set_option("display.max_rows", 40)
 pd.set_option("display.max_columns", None)
+
+
+class EventLog(object):
+	def __init__(self, id_col="case:concept:name",
+				 activity_col="concept:name",
+				 timestamp_col="time:timestamp"):
+		self.id = id_col
+		self.trace = activity_col
+		self.timestamp = timestamp_col
 
 class RuleChecker(EventLog):
 
