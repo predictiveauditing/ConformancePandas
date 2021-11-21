@@ -35,7 +35,7 @@ class RuleChecker(EventLog):
 				self.compliant_case_id_dict[case_id] = len(events)
 
 
-	def encode_sequences(self, log: pd.DataFrame) -> pd.DataFrame:
+	def label_sequences(self, log: pd.DataFrame) -> pd.DataFrame:
 		self.get_compliant_cases(log)
 		self.label_name = "_".join([self.rule, self.checked_activity])
 		self.label_list.append(self.label_name)
@@ -48,7 +48,7 @@ class RuleChecker(EventLog):
 						on=[self.id], how="left")
 		return log
 
-	def label_log(self, log: pd.DataFrame, label_risk_dict: dict, prefix_reduction: int,
+	def encode_traces(self, log: pd.DataFrame, label_risk_dict: dict, prefix_reduction: int,
 				  min_trace_length: int, max_trace_length=None, drop_help_cols=False) -> pd.DataFrame:
 		y_dict = dict()
 		y_pos = dict()
@@ -125,7 +125,7 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log)
+			log = self.label_sequences(log)
 			return log
 		elif not label: return msg
 
@@ -164,7 +164,7 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log)
+			log = self.label_sequences(log)
 			return log
 		elif not label: return msg
 
@@ -219,7 +219,7 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log)
+			log = self.label_sequences(log)
 			return log
 		elif not label: return msg
 
@@ -280,7 +280,7 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log)
+			log = self.label_sequences(log)
 			return log
 		elif not label: return msg
 
@@ -317,6 +317,6 @@ class RuleChecker(EventLog):
 			print()
 			print(msg)
 			print()
-			log = self.encode_sequences(log)
+			log = self.label_sequences(log)
 			return log
 		elif not label: return msg
