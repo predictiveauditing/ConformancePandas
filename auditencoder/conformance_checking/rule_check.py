@@ -88,7 +88,7 @@ class RuleChecker(EventLog):
 			log = log[log["y_pos"] <= max_trace_length]
 		log["idx"] = 0
 		log["idx"] = log.groupby([self.id])["idx"].cumcount()
-		log = log[log.idx <= log.y_pos]
+		log = log[log.idx < log.y_pos]
 		log = log.drop(columns=["idx"])
 		if drop_help_cols:
 			log = log.drop(columns=label_cols+pos_cols)
