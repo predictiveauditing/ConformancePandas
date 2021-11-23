@@ -45,7 +45,54 @@ def event_duration(log: pd.DataFrame, case_id_col='case:concept:name', timestamp
 
 
 def cumulative_duration(log: pd.DataFrame, case_id_col='case:concept:name', timestamp_col='time:timestamp'):
+	dur = False
 	if not "duration" in log.columns.tolist():
 		log = event_duration(log, case_id_col=case_id_col, timestamp_col=timestamp_col)
 	log["cumulative_duration"] = log.groupby(case_id_col)["duration"].apply(lambda x: x.cumsum())
+	if dur:
+		log = log.drop(columns=["duration"])
+	return log
+
+def total_duration(log: pd.DataFrame, case_id_col='case:concept:name', timestamp_col='time:timestamp'):
+	dur = False
+	if not "duration" in log.columns.tolist():
+		log = event_duration(log, case_id_col=case_id_col, timestamp_col=timestamp_col)
+		dur = True
+	log["total_duration"] = log.groupby(case_id_col)["duration"].transform('sum')
+	if dur:
+		log = log.drop(columns=["duration"])
+	return log
+
+
+def get_time_attributes(log: pd.DataFrame,  timestamp_col='time:timestamp'):
+	log["month"] = log[timestamp_col].dt.month
+	log["weekday"] = log[timestamp_col].dt.weekday
+	log["hour"] = log[timestamp_col].dt.hour
+	return log
+
+def cat_cols_one_hot_encoding(log: pd.DataFrame, case_id_col='case:concept:name',
+							  timestamp_col='time:timestamp',
+							  resource_col='org:resource',
+							  activity_col='concept:name',
+							  cat_col_list = None,
+							  cat_col_pattern =None):
+	if cat_col_list is not None:
+		cat_cols = cat_col_list
+	else:
+		if cat_col_pattern is not None:
+			cat_cols = [cat for cat in log.columns.tolist() if cat.startswith(cat_col_pattern)]
+		else:
+			cat_cols = log.columns.tolist()
+
+		if case_id_col in cat_cols:
+			cat_cols.remove(case_id_col)
+		if timestamp_col in cat_cols:
+			cat_cols.remove(timestamp_col)
+		if resource_col not in cat_cols:
+			cat_cols.append(resource_col)
+		if activity_col not in cat_cols:
+			cat_cols.append(activity_col)
+	log1 = log[log.columns.difference(cat_cols).tolist()]
+	log2 = pd.get_dummies(log[cat_cols].copy())
+	log = pd.concat([log1, log2], axis=1)
 	return log
