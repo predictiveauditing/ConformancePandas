@@ -52,6 +52,7 @@ class RuleChecker(EventLog):
 						on=[self.id], how="left")
 		return log
 
+
 	def encode_traces(self, log: pd.DataFrame, label_risk_dict: dict, prefix_reduction: int,
 				  min_trace_length: int, max_trace_length=None, drop_help_cols=False) -> pd.DataFrame:
 		y_dict = dict()
@@ -84,12 +85,11 @@ class RuleChecker(EventLog):
 		log["y_pos"] = log.y_pos - prefix_reduction
 		log = log[log["y_pos"] >= min_trace_length]
 		if not max_trace_length is None:
-			log = log[log["y_pos"] <= max_trace_length]
+			log = log[log["y_pos"] <= max_trace_length + prefix_reduction]
 		log["idx"] = 0
 		log["idx"] = log.groupby([self.id])["idx"].cumcount()
-
-		log = log[log.idx <= log.y_pos]
-		log = log.drop(columns=["idx"])
+		log = log[log.idx < log.y_pos]
+		# log = log.drop(columns=["idx"])
 		if drop_help_cols:
 			log = log.drop(columns=label_cols+pos_cols)
 		return log
