@@ -1,10 +1,7 @@
 import numpy as np
 import pandas as pd
 
-desired_width = 200
-pd.set_option('display.width', desired_width)
-pd.set_option("display.max_rows", 40)
-pd.set_option("display.max_columns", None)
+
 
 
 class EventLog(object):
@@ -59,7 +56,8 @@ class RuleChecker(EventLog):
 				  min_trace_length: int, max_trace_length=None, drop_help_cols=False) -> pd.DataFrame:
 		y_dict = dict()
 		y_pos = dict()
-		label_risk_dict = dict(sorted(label_risk_dict.items(), key=lambda x: x[1]))
+		label_risk_dict = dict(sorted(label_risk_dict.items(), key=lambda x: x[1], reverse=True))
+		print(label_risk_dict)
 		label_cols = list(label_risk_dict.keys())
 		pos_cols = list(["Pos_"+str(label) for label in label_cols])
 		log2 = log.groupby(self.id).agg(dict(zip(label_cols + pos_cols,
@@ -72,23 +70,36 @@ class RuleChecker(EventLog):
 			for j, val in enumerate(row[:len(label_cols)]):
 				if val == 1:
 					y_dict[case_id] = j+1
-					y_pos[case_id] = row[j]
+					y_pos[case_id] = row[len(label_cols):][j]
 					tracked = True
 					break
 				if not tracked:
 					y_dict[case_id] = 0
 					y_pos[case_id] = np.max(row[len(label_cols):])
+
 		log = log.merge(pd.DataFrame({self.id: y_dict.keys(),
 									  "y": y_dict.values(),
 									  "y_pos": y_pos.values()}),
 						on=[self.id], how="left")
+
+		print("log_merge")
+		print(log.y.value_counts())
+		print(log)
 		log["y_pos"] = log.y_pos - prefix_reduction
 		log = log[log["y_pos"] >= min_trace_length]
+		print("log_min_trace")
+		print(log.y.value_counts())
 		if not max_trace_length is None:
 			log = log[log["y_pos"] <= max_trace_length]
+		print("log_max_trace")
+		print(log.y.value_counts())
+
 		log["idx"] = 0
 		log["idx"] = log.groupby([self.id])["idx"].cumcount()
-		log = log[log.idx < log.y_pos]
+
+		log = log[log.idx <= log.y_pos]
+		print("log_idx")
+		print(log.y.value_counts())
 		log = log.drop(columns=["idx"])
 		if drop_help_cols:
 			log = log.drop(columns=label_cols+pos_cols)
