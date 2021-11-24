@@ -81,25 +81,14 @@ class RuleChecker(EventLog):
 									  "y": y_dict.values(),
 									  "y_pos": y_pos.values()}),
 						on=[self.id], how="left")
-
-		print("log_merge")
-		print(log.y.value_counts())
-		print(log)
 		log["y_pos"] = log.y_pos - prefix_reduction
 		log = log[log["y_pos"] >= min_trace_length]
-		print("log_min_trace")
-		print(log.y.value_counts())
 		if not max_trace_length is None:
 			log = log[log["y_pos"] <= max_trace_length]
-		print("log_max_trace")
-		print(log.y.value_counts())
-
 		log["idx"] = 0
 		log["idx"] = log.groupby([self.id])["idx"].cumcount()
 
 		log = log[log.idx <= log.y_pos]
-		print("log_idx")
-		print(log.y.value_counts())
 		log = log.drop(columns=["idx"])
 		if drop_help_cols:
 			log = log.drop(columns=label_cols+pos_cols)
