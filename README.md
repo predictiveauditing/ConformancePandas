@@ -1,30 +1,22 @@
 # Audit Conformance Labeler for Process Predictions
 This python package is a fork from bptlab/bpic implementing conformance checking and data labeling in pandas for predictive process mining.
 
-# Installation
-``
-pip install git+https://github.com/timbaessler/AuditConformanceEncoder.git@master
-``
-
-# Import
-```python
-import auditencoder as aud
-```
 
 # Examples
 
 ## Import XES log as pandas DataFrame
-Follow the steps below, to import an XES event log as a pandas DataFrame:
+Import XES event log as a pandas DataFrame:
 ```python
+import conformancelabeler as clab
 path_to_log = '<path_to_xes_file>'
-log = aud.read_xes(path_to_log)
+log = clab.read_xes(path_to_log)
 ```
 
 ## Conformance Checking
 Enabeling labeling for exact point of violation in the trace:
 
 ```python
-rc = aud.RuleChecker()  
+rc = clab.conformance_checking.RuleChecker() 
 print(rc.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=False))
 
 ```
@@ -40,7 +32,7 @@ log = rc.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=Tr
 ```
 
 ## Sequence Encoding
-Traces with high risk are encoded with priority.
+Hierarchy encoding for for traces that have higher r.
 ```python
 r = list([0.6, 0.2, 0.15, 0.05])
 label_risk_dict = dict(zip(rc.label_list, r))
