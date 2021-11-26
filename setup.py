@@ -6,5 +6,7 @@ setuptools.setup(name='conformancelabeler',
 				 author="Tim Bäßler",
 				 author_email="tim.baessler@web.de",
 				 url="https://github.com/timbaessler/conformance-labeler",
-				 packages=["conformancelabeler"],
+				 packages=["conformancelabeler",
+						   "conformancelabeler.conformance_checking",
+						   "conformancelabeler.util"],
 				 install_requires=["pm4py", "pandas"])
