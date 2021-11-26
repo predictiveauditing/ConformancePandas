@@ -1,4 +1,4 @@
-# Audit Conformance Encoder for Process Predictions
+# Audit Conformance Labeler for Process Predictions
 This python package is a fork from bptlab/bpic implementing conformance checking and data labeling in pandas for predictive process mining.
 
 # Installation
