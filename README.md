@@ -3,7 +3,7 @@ This python package is a fork from bptlab/bpic implementing conformance checking
 
 # Installation
 ``
-pip install git+https://github.com/timbaessler/ConformancePandas.git@master
+pip install git+https://github.com/timbaessler/AuditConformanceEncoder.git@master
 ``
 
 # Import
