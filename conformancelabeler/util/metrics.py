@@ -42,6 +42,7 @@ def get_total_duration(log: pd.DataFrame, case_id_col='case:concept:name',
 
 
 def get_time_attributes(log: pd.DataFrame,  timestamp_col='time:timestamp'):
+    log["year"] = log[timestamp_col].dt.year
     log["month"] = log[timestamp_col].dt.month
     log["weekday"] = log[timestamp_col].dt.weekday
     log["hour"] = log[timestamp_col].dt.hour

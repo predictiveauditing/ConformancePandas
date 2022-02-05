@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-
+import sys
 
 
 
@@ -10,11 +10,11 @@ class EventLog(object):
 				 timestamp_col="time:timestamp"):
 		self.id = id_col
 		self.trace = activity_col
-		self.timestamp = timestamp_col
+		self.timecol = timestamp_col
 
 class RuleChecker(EventLog):
 
-	def __init__(self,id="case:concept:name", trace="concept:name", timestamp="time:timstamp"):
+	def __init__(self,id="case:concept:name", trace="concept:name", timestamp="time:timestamp"):
 
 		EventLog.__init__(self, id, trace, timestamp)
 
@@ -58,7 +58,6 @@ class RuleChecker(EventLog):
 		y_dict = dict()
 		y_pos = dict()
 		label_risk_dict = dict(sorted(label_risk_dict.items(), key=lambda x: x[1], reverse=True))
-		print(label_risk_dict)
 		label_cols = list(label_risk_dict.keys())
 		pos_cols = list(["Pos_"+str(label) for label in label_cols])
 		log2 = log.groupby(self.id).agg(dict(zip(label_cols + pos_cols,
@@ -103,7 +102,6 @@ class RuleChecker(EventLog):
 		self.violations = 0
 		self.case_id_dict = dict()
 
-
 		for case_id, events in log.groupby([self.id])[self.trace].apply(list).items():
 			self.cases += 1
 			tracked = False
@@ -117,7 +115,8 @@ class RuleChecker(EventLog):
 							self.violations += 1
 							self.case_id_dict[case_id] = i
 							tracked = True
-				if counter < lower and i == len(events) and not tracked:
+
+				if counter < lower and i == len(events)-1 and not tracked:
 					# lower cardinality incompliance only gets labeled  when the trace is finalized
 					tracked = True
 					self.violations += 1
@@ -268,7 +267,6 @@ class RuleChecker(EventLog):
 						self.case_id_dict[case_id] = request_idx
 
 				else:
-
 					for i, event in enumerate(events):
 						if event == preceding:
 							pre_stack.append(event)
@@ -327,3 +325,48 @@ class RuleChecker(EventLog):
 			log = self.label_sequences(log)
 			return log
 		elif not label: return msg
+
+
+	def check_time_elapse_bpic2018(self, log, end_activity, label=False):
+
+		self.rule = "time_elapse"
+		self.checked_activity = end_activity
+		self.cases = 0
+		self.violations = 0
+		self.case_id_dict = dict()
+
+		log2 = log[[self.id, self.trace, self.timecol]]
+		log2[self.timecol] = pd.to_datetime(log2[self.timecol])
+		log2[self.timecol] = log2[self.timecol].dt.tz_localize(None)
+
+		for case_id, vals in log2.groupby([self.id]):
+			events = vals[self.trace].tolist()
+			times = vals[self.timecol].dt.year.tolist()
+			if end_activity in events:
+				self.cases += 1
+				start_year = times[0]
+				req_idx = events[::-1].index(end_activity)
+				end_year = times[::-1][req_idx]
+				if end_year > start_year:
+					self.violations += 1
+					self.case_id_dict[case_id] = [start_year == year for year in times].index(False)
+		msg = ("Time elapse checking of with "+str(self.violations) + " violations: "+ str(self.get_percentage())
+					   +"% of all cases.")
+		if label:
+			print()
+			print(msg)
+			print()
+			log = self.label_sequences(log)
+			return log
+		elif not label: return msg
+
+
+
+
+
+
+
+
+
+
+
