@@ -64,7 +64,7 @@ def get_time_attributes(log: pd.DataFrame,  timestamp_col='time:timestamp'):
 
 
 def get_seq_length(log: pd.DataFrame, case_id_col='case:concept:name'):
-    log = log.merge(log.groupby(case_id_col).size().reset_index().rename(columns={0: "l"}),
+    log = log.merge(log.groupby(case_id_col).size().reset_index().rename(columns={0: "trace_length"}),
                     on=[case_id_col], how="left")
     return log
 
@@ -72,4 +72,13 @@ def get_event_nr(log:pd.DataFrame, case_id_col='case:concept:name'):
     log["event_nr"] = 1
     log["event_nr"] = log.groupby([case_id_col])["event_nr"].cumsum()
     return log
+
+def get_remaining_time(log: pd.DataFrame, case_id_col='case:concept:name',
+                       timestamp_col='time:timestamp'):
+    if not "duration" in log.columns.tolist():
+        log = get_event_duration(log, case_id_col=case_id_col, timestamp_col=timestamp_col)
+    log["remaining_time"] = log[::-1].groupby(case_id_col)["duration"].cumsum().fillna(0) / 3600
+    return log
+
+
 
