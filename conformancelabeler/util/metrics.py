@@ -12,13 +12,20 @@ def get_activity_count(df: pd.DataFrame, event_name: str, case_id_col='case:conc
 def get_event_duration(log: pd.DataFrame, case_id_col='case:concept:name',
                        timestamp_col='time:timestamp'):
     log[timestamp_col] = log[timestamp_col].dt.tz_localize(None)
-    log["duration"] = (log.groupby(case_id_col)[timestamp_col].diff()).dt.seconds.shift(-1)
+    log["duration"] = log.groupby(case_id_col)[timestamp_col].diff().dt.total_seconds().shift(-1)
+    print(log[log["case:concept:name"]=="2000000000_00001"])
+    print(log[log["case:concept:name"]=="2000000001_00001"])
+
+    log["duration"] = (log.duration).astype(float) / 3600
+    print(log[log["case:concept:name"]=="2000000000_00001"])
+    print(log[log["case:concept:name"]=="2000000001_00001"])
+
     return log
 
 def get_time_since_last_event(log: pd.DataFrame, case_id_col='case:concept:name',
                               timestamp_col='time:timestamp'):
     log[timestamp_col] = log[timestamp_col].dt.tz_localize(None)
-    log["time_since_last_event"] = (log.groupby(case_id_col)[timestamp_col].diff()).dt.seconds.fillna(0)
+    log["time_since_last_event"] = (log.groupby(case_id_col)[timestamp_col].diff()).dt.total_seconds().fillna(0)
     return log
 
 
@@ -77,7 +84,11 @@ def get_remaining_time(log: pd.DataFrame, case_id_col='case:concept:name',
                        timestamp_col='time:timestamp'):
     if not "duration" in log.columns.tolist():
         log = get_event_duration(log, case_id_col=case_id_col, timestamp_col=timestamp_col)
-    log["remaining_time"] = log[::-1].groupby(case_id_col)["duration"].cumsum().fillna(0) / 3600
+    print(log[log["case:concept:name"]=="2000000000_00001"])
+    print(log[log["case:concept:name"]=="2000000001_00001"])
+    log["remaining_time"] = (log[::-1].groupby(case_id_col)["duration"].cumsum().fillna(0)).astype(float)
+    print(log[log["case:concept:name"]=="2000000000_00001"])
+    print(log[log["case:concept:name"]=="2000000001_00001"])
     return log
 
 
