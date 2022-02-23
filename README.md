@@ -28,18 +28,14 @@ Conformance checking via precedence rules of 'Clear Invoice' requiring 'Record G
 Returns an extra column signalling incompliance and position of the violated rule.
 
 ```python
-log = rc.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=True)
+log = rc.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', 
+label=True)
 ```
 
 ## Sequence Encoding
-Hierarchy encoding for for traces that have higher r.
+Labeling of the position of conformance violation. Prefix reduction reduces the trace one event before the incident.
 ```python
-r = list([0.6, 0.2, 0.15, 0.05])
-label_risk_dict = dict(zip(rc.label_list, r))
+log = rc.check_precedence(log, 'Record Goods Receipt', 'Clear Invoice', label=True, prefix_reduction=True)
 
-log = rc.encode_traces(log,label_risk_dict = label_risk_dict, 
-                                        prefix_reduction=1,
-                                        min_trace_length=4, 
-                                        drop_help_cols=True)
 
 ```
