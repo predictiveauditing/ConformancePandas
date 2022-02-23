@@ -48,7 +48,7 @@ class RuleChecker(EventLog):
         return log
 
 
-    def encode_traces(self, log: pd.DataFrame, single_rule=False, prefix_reduction=1,
+    def prefix_reduction(self, log: pd.DataFrame, single_rule=False, prefix_reduction=1,
                       min_trace_length=2, max_trace_length=None, drop_help_cols=True,
                       hierarchical=False) -> pd.DataFrame:
         y_dict = dict()
@@ -109,8 +109,8 @@ class RuleChecker(EventLog):
         return log
 
     def check_cardinality(self, log: pd.DataFrame, activity: str, upper: int, lower: int,
-                          label=True, encode=False,
-                          prefix_reduction=1, min_trace_length=2,
+                          label=True, prefix_reduction=False,
+                          prefix_reduction_size=1, min_trace_length=2,
                           max_trace_length=None, drop_help_cols=True):
         self.rule = "cardinality"
         self.checked_activity = "_".join([activity, str(upper), str(lower)])
@@ -147,9 +147,9 @@ class RuleChecker(EventLog):
             print(msg)
             print()
             log = self.label_sequences(log)
-            if encode:
-                log = self.encode_traces(log, single_rule=True,
-                                         prefix_reduction=prefix_reduction,
+            if prefix_reduction:
+                log = self.prefix_reduction(log, single_rule=True,
+                                         prefix_reduction=prefix_reduction_size,
                                          min_trace_length=min_trace_length,
                                          max_trace_length=max_trace_length,
                                          drop_help_cols=drop_help_cols)
@@ -157,8 +157,8 @@ class RuleChecker(EventLog):
         elif not label:
             return msg
 
-    def check_order(self, log, first: str, second: str, label=True, encode=False,
-                    prefix_reduction=1, min_trace_length=2,
+    def check_order(self, log, first: str, second: str, label=True, prefix_reduction=False,
+                    prefix_reduction_size=1, min_trace_length=2,
                     max_trace_length=None, drop_help_cols=True):
         """
         Check the order of the given activities.
@@ -194,9 +194,9 @@ class RuleChecker(EventLog):
             print(msg)
             print()
             log = self.label_sequences(log)
-            if encode:
-                log = self.encode_traces(log, single_rule=True,
-                                         prefix_reduction=prefix_reduction,
+            if prefix_reduction:
+                log = self.prefix_reduction(log, single_rule=True,
+                                         prefix_reduction=prefix_reduction_size,
                                          min_trace_length=min_trace_length,
                                          max_trace_length=max_trace_length,
                                          drop_help_cols=drop_help_cols)
@@ -205,8 +205,8 @@ class RuleChecker(EventLog):
             return msg
 
     def check_response(self, log, request: str, response: str,
-                       single_occurrence=False, label=True, encode=False,
-                       prefix_reduction=1, min_trace_length=2,
+                       single_occurrence=False, label=True, prefix_reduction=False,
+                       prefix_reduction_size=1, min_trace_length=2,
                        max_trace_length=None, drop_help_cols=True):
 
         """
@@ -258,9 +258,9 @@ class RuleChecker(EventLog):
             print(msg)
             print()
             log = self.label_sequences(log)
-            if encode:
-                log = self.encode_traces(log, single_rule=True,
-                                         prefix_reduction=prefix_reduction,
+            if prefix_reduction:
+                log = self.prefix_reduction(log, single_rule=True,
+                                         prefix_reduction=prefix_reduction_size,
                                          min_trace_length=min_trace_length,
                                          max_trace_length=max_trace_length,
                                          drop_help_cols=drop_help_cols)
@@ -269,8 +269,8 @@ class RuleChecker(EventLog):
             return msg
 
     def check_precedence(self, log: pd.DataFrame, preceding: str, request: str,
-                         single_occurrence=False, label=False, encode=False,
-                         prefix_reduction=1, min_trace_length=2,
+                         single_occurrence=False, label=False, prefix_reduction=False,
+                         prefix_reduction_size=1, min_trace_length=2,
                          max_trace_length=None, drop_help_cols=True):
         """
         Check precedence requirements of the given activity.
@@ -330,9 +330,9 @@ class RuleChecker(EventLog):
             print(msg)
             print()
             log = self.label_sequences(log)
-            if encode:
-                log = self.encode_traces(log, single_rule=True,
-                                 prefix_reduction=prefix_reduction,
+            if prefix_reduction:
+                log = self.prefix_reduction(log, single_rule=True,
+                                 prefix_reduction=prefix_reduction_size,
                                  min_trace_length=min_trace_length,
                                  max_trace_length=max_trace_length,
                                  drop_help_cols=drop_help_cols)
@@ -341,7 +341,7 @@ class RuleChecker(EventLog):
             return msg
 
     def check_exclusive(self, log, first_activity: str, second_activity: str,
-                        label=False, encode=False, prefix_reduction=1, min_trace_length=2,
+                        label=False, prefix_reduction=False, prefix_reduction_size=1, min_trace_length=2,
                         max_trace_length=None, drop_help_cols=True):
         """
         Check the exclusiveness of two activities.
@@ -374,9 +374,9 @@ class RuleChecker(EventLog):
             print(msg)
             print()
             log = self.label_sequences(log)
-            if encode:
-                log = self.encode_traces(log, single_rule=True,
-                                 prefix_reduction=prefix_reduction,
+            if prefix_reduction:
+                log = self.prefix_reduction(log, single_rule=True,
+                                 prefix_reduction=prefix_reduction_size,
                                  min_trace_length=min_trace_length,
                                  max_trace_length=max_trace_length,
                                  drop_help_cols=drop_help_cols)
@@ -385,7 +385,7 @@ class RuleChecker(EventLog):
             return msg
 
     def check_time_elapse_bpic2018(self, log, end_activity, label=False,
-                                   encode=False, prefix_reduction=1, min_trace_length=2,
+                                   prefix_reduction=False, prefix_reduction_size=1, min_trace_length=2,
                                    max_trace_length=None, drop_help_cols=True):
 
         self.rule = "time_elapse"
@@ -417,9 +417,9 @@ class RuleChecker(EventLog):
             print(msg)
             print()
             log = self.label_sequences(log)
-            if encode:
-                log = self.encode_traces(log, single_rule=True,
-                                         prefix_reduction=prefix_reduction,
+            if prefix_reduction:
+                log = self.prefix_reduction(log, single_rule=True,
+                                         prefix_reduction=prefix_reduction_size,
                                          min_trace_length=min_trace_length,
                                          max_trace_length=max_trace_length,
                                          drop_help_cols=drop_help_cols)
